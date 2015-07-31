@@ -459,6 +459,58 @@ def vsphere_host(resource, module_name):
     return name, attrs, groups
 
 
+# https://github.com/ccll/terraform-provider-virtualbox/
+@parses('virtualbox_vm')
+@calculate_mi_vars
+def virtualbox_host(resource, module_name):
+    raw_attrs = resource['primary']['attributes']
+    name = raw_attrs['name']
+    groups = []
+
+    # get ipv4_address of first non-NAT adapter
+    index = 0
+    ipv4_address = ''
+    while True:
+        type_key = 'network_adapter.{}.type'.format(index)
+        if type_key not in raw_attrs:
+            break
+        if raw_attrs[type_key] == "nat":
+            index += 1
+            continue
+        ipv4_address = raw_attrs['network_adapter.{}.ipv4_address'.format(index)]
+        break
+
+    attrs = {
+        'id': raw_attrs['id'],
+        'image': raw_attrs['image'],
+        'cpus': raw_attrs['cpus'],
+        'memory': raw_attrs['memory'],
+        'status': raw_attrs['status'],
+        'ipv4_address': ipv4_address,
+        'metadata': json.loads(raw_attrs['user_data']) if 'user_data' in raw_attrs else {},
+        # ansible
+        'ansible_ssh_host': ipv4_address,
+        'ansible_ssh_port': 22,
+        'ansible_ssh_user': 'root',
+        # generic
+        'public_ipv4': ipv4_address,
+        'private_ipv4': ipv4_address,
+        'provider': 'virtualbox',
+    }
+
+    # attrs specific to microservices-infrastructure
+    attrs.update({
+        'consul_dc': _clean_dc(attrs['metadata'].get('consul_dc', module_name)),
+        'role': attrs['metadata'].get('role', 'none'),
+    })
+
+    # groups specific to microservices-infrastructure
+    groups.append('role=' + attrs['role'])
+    groups.append('dc=' + attrs['consul_dc'])
+
+    return name, attrs, groups
+
+
 ## QUERY TYPES
 def query_host(hosts, target):
     for name, attrs, _ in hosts:
