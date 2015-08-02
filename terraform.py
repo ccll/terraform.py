@@ -505,7 +505,12 @@ def virtualbox_host(resource, module_name):
     })
 
     # groups specific to microservices-infrastructure
-    groups.append('role=' + attrs['role'])
+    role = attrs['role']
+    if type(role) is str:
+        groups.append('role=' + role)
+    elif type(role) is list:
+        for r in role:
+            groups.append('role=' + r)
     groups.append('dc=' + attrs['consul_dc'])
 
     return name, attrs, groups
