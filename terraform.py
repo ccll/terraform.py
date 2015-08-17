@@ -83,10 +83,11 @@ def calculate_mi_vars(func):
         name, attrs, groups = func(*args, **kwargs)
 
         # attrs
-        if attrs.get('role', '') == 'control':
-            attrs['consul_is_server'] = True
-        else:
-            attrs['consul_is_server'] = False
+        attrs['consul_is_server'] = False
+        if 'role' in attrs:
+            role = attrs['role']
+            if role == 'control' or (type(role) is list and 'control' in role):
+                attrs['consul_is_server'] = True
 
         # groups
         if attrs.get('publicly_routable', False):
